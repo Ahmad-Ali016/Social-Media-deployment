@@ -864,7 +864,7 @@ Comment
 
 ```bash
 # Clone repository
-git clone https://github.com/Ahmad-Ali016/Social-Media-deployment.git
+git clone https://github.com/Ahmad-Ali016/Social-Media-deploy.git
 
 # Create virtual environment
 python -m venv venv
