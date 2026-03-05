@@ -7,4 +7,3 @@ urlpatterns = [
     path('list/', UserListView.as_view(), name='user-list'),    # staff-only endpoint
     path('logout/', LogoutView.as_view(), name='logout'),
 ]
-
