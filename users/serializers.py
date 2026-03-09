@@ -41,11 +41,50 @@ class LoginSerializer(serializers.Serializer):
         user = authenticate(email=attrs['email'], password=attrs['password'])
         if not user:
             raise serializers.ValidationError("Invalid email or password")
+
+        # Block unverified users
+        if not user.is_email_verified:
+            raise serializers.ValidationError("Email not verified. Please check your inbox.")
+
         attrs['user'] = user
         return attrs
 
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'username', 'bio', 'gender', 'profile_picture', 'is_log_in')  # Include online status
+        fields = (
+            'id',
+            'email',
+            'username',
+            'bio',
+            'gender',
+            'profile_picture',
+            'is_log_in',
+            'is_email_verified'
+        )
 
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        from users.models import User, EmailVerificationOTP
+
+        try:
+            user = User.objects.get(email=attrs['email'])
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Invalid email")
+
+        try:
+            otp_obj = EmailVerificationOTP.objects.filter(user=user, otp=attrs['otp']).latest('created_at')
+        except EmailVerificationOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP")
+
+        if otp_obj.is_expired():
+            raise serializers.ValidationError("OTP expired")
+
+        # OTP is valid → mark as used
+        otp_obj.delete()
+
+        attrs['user'] = user
+        return attrs

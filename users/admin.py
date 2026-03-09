@@ -13,6 +13,7 @@ class UserAdmin(BaseUserAdmin):
         "id",
         "email",
         "username",
+        "is_email_verified",
         "is_staff",
         "is_active",
         "is_log_in",
@@ -20,19 +21,22 @@ class UserAdmin(BaseUserAdmin):
         "created_at",
     )
 
+    readonly_fields = ("created_at",)
+
     # Filters in right sidebar
     list_filter = (
         "is_staff",
         "is_active",
         "is_private_account",
         "gender",
+        "is_email_verified",
     )
 
     # Search functionality
     search_fields = ("email", "username")
 
     # Default ordering
-    # ordering = ("-created_at",)
+    ordering = ("-created_at",)
 
     # Fieldsets for editing user
     fieldsets = BaseUserAdmin.fieldsets + (

@@ -1,6 +1,10 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+import uuid
+from django.utils import timezone
+from datetime import timedelta
+
 # Create your models here.
 
 
@@ -33,9 +37,28 @@ class User(AbstractUser):
     # User creation timestamp
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Email verification check
+    is_email_verified = models.BooleanField(default=False)
+
     # Use email as login field
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']  # Username still required for superuser
 
     def __str__(self):
         return self.email
+
+class EmailVerificationOTP(models.Model):
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_otps")
+    otp = models.CharField(max_length=6)
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(minutes=10)
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at

@@ -2,9 +2,13 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from users.serializers import RegisterSerializer, LoginSerializer, UserListSerializer
+from users.serializers import RegisterSerializer, LoginSerializer, UserListSerializer, VerifyOTPSerializer
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import IsAuthenticated
+from django.utils.http import urlsafe_base64_decode
+
+from users.utils import send_verification_email
+from users.tokens import email_verification_token
 
 # Create your views here.
 
@@ -14,15 +18,20 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
+
+            # Create the user
             user = serializer.save()
 
-            # Generate JWT token
-            refresh = RefreshToken.for_user(user)
+            # Send verification email
+            send_verification_email(user, request)
+
+            # Return a Response — DO NOT issue JWT yet
             return Response({
-                "user": serializer.data,
-                "refresh": str(refresh),
-                "access": str(refresh.access_token)
+                "message": "Registration successful. Please verify your email.",
+                "email": user.email
             }, status=status.HTTP_201_CREATED)
+
+        # Validation errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -85,3 +94,41 @@ class LogoutView(APIView):
                 return Response({"detail": "Invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"detail": "Logged out successfully"}, status=status.HTTP_200_OK)
+
+class VerifyEmailView(APIView):
+
+    def get(self, request, uidb64, token):
+        try:
+            uid = urlsafe_base64_decode(uidb64).decode()
+            user = User.objects.get(pk=uid)
+        except Exception:
+            return Response({"error": "Invalid verification link"}, status=400)
+
+        if email_verification_token.check_token(user, token):
+            if user.is_email_verified:
+                return Response({"message": "Email already verified"})
+            user.is_email_verified = True
+            user.save(update_fields=['is_email_verified'])
+            return Response({"message": "Email verified successfully"})
+        else:
+            return Response({"error": "Invalid or expired token"}, status=400)
+
+class VerifyOTPView(APIView):
+
+    # Endpoint to verify OTP sent to user's email.
+
+    def post(self, request):
+        serializer = VerifyOTPSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+
+            # Mark user as email verified
+            user.is_email_verified = True
+            user.save(update_fields=['is_email_verified'])
+
+            return Response({
+                "message": "Email verified successfully. You can now log in.",
+                "email": user.email
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

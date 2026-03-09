@@ -1,11 +1,61 @@
 # Social Media Backend API
 
-Backend API for a Social Media platform built with **Django** and
-**Django REST Framework**.
+Backend API for a **Social Media platform** built with **Django** and 
+**Django REST Framework**, with **JWT authentication** and **email 
+verification** for user registration.
 
-This API provides:
+## Overview
 
--   User authentication
+This project is a Django REST API backend for a Social Media application 
+that supports core networking features such as user authentication, 
+profile management, friendships, and content sharing.
+
+Built with Django, Django REST Framework, and JWT authentication, the 
+system follows a modular architecture with dedicated apps for users, 
+profiles, friends, and posts. Users register with email-based OTP 
+verification, ensuring secure account activation before accessing the 
+platform.
+
+The API enables users to manage profiles, send and accept friend 
+requests, create posts with media, and interact through likes and 
+comments. The project emphasizes clean architecture, structured REST 
+endpoints, and relational database design, making it a practical 
+demonstration of scalable backend development for social platforms.
+
+## Key Features
+
+- Secure JWT-based authentication 
+- Email OTP verification during registration 
+- User profile management 
+- Friend request and friendship system 
+- Post creation with media support 
+- Likes and comments on posts 
+- Modular API architecture
+
+## Tech Stack
+
+- Backend: Django, Django REST Framework
+- Authentication: JWT (SimpleJWT)
+- Database: SQLite / PostgreSQL 
+- Environment Management: python-dotenv 
+- API Design: RESTful architecture
+
+## Project Architecture
+
+The backend follows a modular Django app structure, separating 
+responsibilities across multiple components:
+
+- Users App – Authentication, registration, and account management 
+- Profiles App – User profile data and retrieval 
+- Friends App – Friend requests and friendship relationships 
+- Posts App – Post creation, media handling, likes, and comments 
+
+This structure improves scalability, maintainability, and clarity in 
+the codebase.
+
+**This provides:**
+
+-   User authentication with email verification via OTP and verification link
 -   User profiles
 -   Friend requests & friendships
 -   Posts with media
@@ -47,8 +97,9 @@ Frontend must send the access token in the request header:
 
 ### Endpoints that do NOT require authentication
 
--   Register
--   Login
+- Register (requires email verification after registration)
+- Login (will fail if email is not verified)
+- Verify Email / OTP
 
 All other endpoints require authentication.
 
@@ -59,25 +110,27 @@ All other endpoints require authentication.
 Typical frontend workflow:
 
 1.  Register user
-2.  Login
-3.  Receive access and refresh tokens
-4.  Store access token
-5.  Send token in Authorization header
+2. Verify email using OTP or verification link 
+3. Login 
+4. Receive access and refresh tokens 
+5. Store access token 
+6. Send token in Authorization header
 
 ------------------------------------------------------------------------
 
 # User Model Fields
-|       Field        |       Description       |
-|:------------------:|:-----------------------:|
-|       email        | Unique login identifier |
-|      username      |     Public username     |
-|  profile_picture   | Optional profile image  |
-|        bio         |     User biography      |
-|   date_of_birth    |   Optional birth date   |
-|       gender       |        M / F / O        |
-| is_private_account |     Privacy control     |
-|     is_log_in      |      Login status       |
-|     created_at     |  Account creation time  |
+|       Field        |                     Description                     |
+|:------------------:|:---------------------------------------------------:|
+|       email        |               Unique login identifier               |
+|      username      |                   Public username                   |
+|  profile_picture   |               Optional profile image                |
+|        bio         |                   User biography                    |
+|   date_of_birth    |                 Optional birth date                 |
+|       gender       |                      M / F / O                      |
+| is_private_account |                   Privacy control                   |
+|     is_log_in      |                    Login status                     |
+| is_email_verified  | Email verification status (True after verification) |
+|     created_at     |                Account creation time                |
 
 Login is performed using **email** instead of username.
 
@@ -101,12 +154,52 @@ Request:
   "gender": "M"
 }
 ```
+**Notes / Updates:**
+- After registration, the user will receive an email with a verification link and OTP. 
+- User cannot login until email is verified.
+
+------------------------------------------------------------------------
+
+## Verify Email / OTP
+
+    POST /api/users/verify-otp/
+
+Request:
+
+``` json
+{
+    "email": "name@email.com",
+    "otp": "123456"
+}
+```
+
+Response:
+
+``` json
+{
+    "message": "Email verified successfully"
+}
+```
+
+**Notes / Updates:**
+
+- OTP expires in 10 minutes. 
+- After successful verification, is_email_verified is set to True. 
 
 ------------------------------------------------------------------------
 
 ## Login
 
     POST /api/users/login/
+
+Request:
+
+``` json
+{
+    "email": "testuser1@example.com",
+    "password": "Password123!"
+}
+```
 
 Response:
 
@@ -117,13 +210,18 @@ Response:
     "username": "testuser1",
     "bio": "bio here",
     "gender": "M",
-    "profile_picture": null,
-    "is_log_in": true
+    "profile_picture": null, 
+    "is_log_in": true,
+    "is_email_verified": true
   },
   "refresh": "refresh_token_here",
   "access": "access_token_here"
 }
 ```
+
+**Notes:**
+
+- Login will fail with an error if email is not verified. 
 
 ------------------------------------------------------------------------
 
@@ -410,10 +508,11 @@ Currently pagination is **not implemented**.
 
 # Backend Stack
 
--   Django
--   Django REST Framework
--   SimpleJWT
--   SQLite (development)
+- Django 
+- Django REST Framework 
+- SimpleJWT 
+- python-dotenv (for environment variables)
+- SQLite (development)
 
 ------------------------------------------------------------------------
 
@@ -427,12 +526,13 @@ Authentication header:
 
 ## Authentication & Users API
 
-| Method | Endpoint               | Description                       | Auth Required |
-|--------|------------------------|-----------------------------------|---------------|
-| POST   | `/api/users/register/` | Register a new user account       | ❌             |
-| POST   | `/api/users/login/`    | Login user and receive JWT tokens | ❌             |
-| POST   | `/api/users/logout/`   | Logout user (invalidate token)    | ✅             |
-| GET    | `/api/users/list/`     | List all users (Staff only)       | ✅             |
+| Method | Endpoint                 | Description                                                       | Auth Required |
+|--------|--------------------------|-------------------------------------------------------------------|---------------|
+| POST   | `/api/users/register/`   | Register a new user account (email verification required)         | ❌             |
+| POST   | `/api/users/verify-otp/` | Verify email using OTP sent to user email                         | ❌             |
+| POST   | `/api/users/login/`      | Login user and receive JWT tokens (blocked if email not verified) | ❌             |
+| POST   | `/api/users/logout/`     | Logout user (invalidate token)                                    | ✅             |
+| GET    | `/api/users/list/`       | List all users (Staff only)                                       | ✅             |
 
 ## Profiles API
 
@@ -582,6 +682,7 @@ Below is the collection structure.
 1- Authentication:
 
     POST Register
+    POST Verify OTP
     POST Login 
     POST Logout 
     GET Users List
@@ -629,6 +730,33 @@ Body:
   "gender": "M"
 }
 ```
+**Note:** After registration, the user will not be able to login 
+until email verification is completed. An OTP is sent to the 
+provided email.
+
+### Verify OTP
+
+POST
+
+    /api/users/verify-otp/
+
+Body:
+
+``` json
+{
+  "email": "user@test.com",
+  "otp": "123456"
+}
+```
+
+Response:
+
+``` json
+{
+  "message": "Email verified successfully",
+  "email": "user@test.com"
+}
+```
 
 ### Login
 
@@ -645,6 +773,9 @@ Body:
 }
 ```
 
+> **Important:** Login will fail with an error if the email has not yet 
+been verified.  
+
 Response:
 
 ``` json
@@ -655,7 +786,8 @@ Response:
     "bio": "Hello world",
     "gender": "M",
     "profile_picture": null,
-    "is_log_in": true
+    "is_log_in": true,
+    "is_email_verified": true
   },
   "refresh": "token",
   "access": "token"
@@ -751,9 +883,10 @@ Django REST API (Social_Media_app)
    |
    |--- Users App
    |       |-- /register
+   |       |-- /verify-otp
    |       |-- /login
    |       |-- /logout
-   |       |-- /list
+   |       |-- /list (Staff only)
    |
    |--- Profiles App
    |       |-- /me/
@@ -776,6 +909,8 @@ Django REST API (Social_Media_app)
 
 Database (SQLite/PostgreSQL)
    |--- Users Table
+   |       |-- is_email_verified 
+   |--- EmailVerificationOTP Table
    |--- Profiles Table
    |--- Friends Table
    |--- FriendRequests Table
@@ -798,7 +933,16 @@ User (CustomUser)
   - profile_picture
   - is_private_account
   - is_log_in
+  - is_email_verified
   - created_at
+
+EmailVerificationOTP
+  - id (PK)
+  - user_id (FK → User.id)
+  - otp
+  - created_at
+  - expires_at
+  - is_used 
 
 Profile
   - id (PK)
